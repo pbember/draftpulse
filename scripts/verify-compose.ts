@@ -10,9 +10,10 @@ const dims = {
   anti_slop: 0.9,
 };
 
-const { composite, tips } = compose(dims, "how_to", 0.8);
+const { composite, tips, suggestions } = compose(dims, "how_to", 0.8, "Sample text");
 assert.ok(composite > 0.5 && composite < 0.9, `composite=${composite}`);
 assert.ok(tips.length >= 1);
+assert.ok(Array.isArray(suggestions));
 
 const mock = analyzeMock(
   "I shipped 3 checklists last week.\n\nHere is the playbook:\n1. Hook\n2. Proof\n3. Ask\n\nWhat would you cut?",
@@ -20,9 +21,12 @@ const mock = analyzeMock(
 assert.equal(mock.mode, "mock");
 assert.ok(mock.composite > 0.3, `mock composite=${mock.composite}`);
 assert.ok(mock.dimensions.reply_magnet > 0.3);
+assert.ok(Array.isArray(mock.suggestions));
+assert.ok(mock.suggestions.length > 0, "should generate suggestions");
 
 console.log("verify-compose ok", {
   composite,
   mockComposite: mock.composite,
   category: mock.category,
+  suggestionCount: mock.suggestions.length,
 });

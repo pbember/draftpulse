@@ -16,6 +16,25 @@ export type DimensionScores = {
   anti_slop: number;
 };
 
+export type SuggestionType =
+  | "hook"
+  | "reply"
+  | "structure"
+  | "specificity"
+  | "slop_fix";
+
+export type SuggestionAction = "replace_hook" | "append" | "replace_all";
+
+export type WritingSuggestion = {
+  id: string;
+  type: SuggestionType;
+  title: string;
+  explanation: string;
+  suggestedText: string;
+  action: SuggestionAction;
+  actionLabel: string;
+};
+
 export type AnalyzeResult = {
   mode: "live" | "mock";
   category: Category;
@@ -23,6 +42,7 @@ export type AnalyzeResult = {
   dimensions: DimensionScores;
   composite: number;
   tips: string[];
+  suggestions: WritingSuggestion[];
   model?: string;
 };
 
@@ -43,4 +63,12 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   announcement: "Announcement",
   humor: "Humor",
   other: "Other",
+};
+
+export const SUGGESTION_TYPE_LABELS: Record<SuggestionType, string> = {
+  hook: "Hook Alternative",
+  reply: "Reply Magnet",
+  structure: "Structure & Dwell",
+  specificity: "Concrete Proof",
+  slop_fix: "Anti-Slop Polish",
 };

@@ -19,6 +19,25 @@ export type DimensionScores = {
   anti_slop: number;
 };
 
+export type SuggestionType =
+  | "hook"
+  | "reply"
+  | "structure"
+  | "specificity"
+  | "slop_fix";
+
+export type SuggestionAction = "replace_hook" | "append" | "replace_all";
+
+export type WritingSuggestion = {
+  id: string;
+  type: SuggestionType;
+  title: string;
+  explanation: string;
+  suggestedText: string;
+  action: SuggestionAction;
+  actionLabel: string;
+};
+
 export type AnalyzeResult = {
   mode: "live" | "mock";
   category: Category;
@@ -26,6 +45,7 @@ export type AnalyzeResult = {
   dimensions: DimensionScores;
   composite: number;
   tips: string[];
+  suggestions: WritingSuggestion[];
   model?: string;
 };
 
@@ -161,11 +181,151 @@ function tipFrom(dimensions: DimensionScores, category: Category): string[] {
   return tips.slice(0, 3);
 }
 
+export function generateWritingSuggestions(
+  text: string,
+  dimensions: DimensionScores,
+  category: Category,
+): WritingSuggestion[] {
+  const suggestions: WritingSuggestion[] = [];
+  const t = text.trim();
+  if (!t) return suggestions;
+
+  const lines = t.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const firstLine = lines[0] || t;
+  const cleanFirst = firstLine
+    .replace(/^([#*\->\s\d.]+|stop|unpopular opinion:?|hot take:?)+/i, "")
+    .replace(/[:.!?]+$/, "")
+    .trim();
+
+  // 1. Hook suggestions
+  if (cleanFirst.length > 3) {
+    const topic = cleanFirst.length > 50 ? cleanFirst.slice(0, 48) + "…" : cleanFirst;
+
+    let contrarianHook = `Most people get ${topic.toLowerCase()} completely wrong.\n\nHere is the real breakdown:`;
+    if (/^how to/i.test(cleanFirst)) {
+      contrarianHook = `Stop trying to ${cleanFirst.replace(/^how to\s+/i, "").toLowerCase()} the hard way.\n\nHere is the actual playbook:`;
+    } else if (/^(i|we)\s+/i.test(cleanFirst)) {
+      contrarianHook = `90% of people fail at this. Here is what we discovered:`;
+    }
+
+    suggestions.push({
+      id: "hook-contrarian",
+      type: "hook",
+      title: "Contrarian tension hook",
+      explanation: "Subverts expectations in the first 2 seconds to immediately halt scrolling.",
+      suggestedText: contrarianHook,
+      action: "replace_hook",
+      actionLabel: "⚡ Apply Contrarian Hook",
+    });
+
+    suggestions.push({
+      id: "hook-curiosity",
+      type: "hook",
+      title: "Curiosity & stakes hook",
+      explanation: "Creates an open loop and gives readers a compelling reason to read on.",
+      suggestedText: `If you only remember one rule about ${topic.toLowerCase()}, make it this:`,
+      action: "replace_hook",
+      actionLabel: "⚡ Apply Curiosity Hook",
+    });
+  }
+
+  // 2. Reply magnet suggestion (if reply pull is weak or draft lacks a question)
+  const hasQuestion = /\?/.test(t);
+  if (dimensions.reply_magnet < 0.75 || !hasQuestion) {
+    let questionText = "What would you add to this? Drop your thoughts below 👇";
+    if (category === "hot_take") {
+      questionText = "Agree or disagree? How do you see this playing out?";
+    } else if (category === "how_to") {
+      questionText = "What's the #1 step or pitfall you'd add to this checklist?";
+    } else if (category === "story") {
+      questionText = "Have you experienced something similar? How did you handle it?";
+    } else if (category === "announcement") {
+      questionText = "What feature or detail would you love to see next?";
+    }
+
+    suggestions.push({
+      id: "reply-question",
+      type: "reply",
+      title: "Closing discussion prompt",
+      explanation: "Direct questions invite immediate replies, boosting algorithmic distribution.",
+      suggestedText: questionText,
+      action: "append",
+      actionLabel: "➕ Add Closing Question",
+    });
+  }
+
+  // 3. Structure & Dwell (if text is a dense single block or wall of text)
+  const wordCount = t.split(/\s+/).filter(Boolean).length;
+  if (lines.length <= 2 && wordCount >= 18) {
+    const sentences = t.match(/[^.!?]+[.!?]+(\s+|$)/g)?.map((s) => s.trim()) || [];
+    if (sentences.length >= 3) {
+      const formatted = [
+        sentences[0],
+        "",
+        ...sentences.slice(1, -1).map((s) => `• ${s}`),
+        "",
+        sentences[sentences.length - 1],
+      ].join("\n");
+
+      suggestions.push({
+        id: "structure-spaced",
+        type: "structure",
+        title: "Punchy spaced list",
+        explanation: "Breaking walls of text into scannable lines increases dwell time and readability.",
+        suggestedText: formatted,
+        action: "replace_all",
+        actionLabel: "✨ Format as Spaced List",
+      });
+    }
+  }
+
+  // 4. Concrete Proof / Specificity
+  const hasNumbers = /\d/.test(t);
+  if (dimensions.specificity < 0.65 || !hasNumbers) {
+    suggestions.push({
+      id: "spec-proof",
+      type: "specificity",
+      title: "Anchor with real metrics & proof",
+      explanation: "Adding specific numbers or metrics makes claims 3x more credible and shareable.",
+      suggestedText: "The exact numbers:\n• Before: [Metric]\n• After: [Metric]\n• Timeline: [Timeframe]",
+      action: "append",
+      actionLabel: "➕ Append Metric Framework",
+    });
+  }
+
+  // 5. Anti-slop polish (if slop words found)
+  const slopRegex = /\b(unbelievable|game changer|you won't believe|comment yes|as an ai|unlock the secret|thread 🧵)\b/gi;
+  if (slopRegex.test(t)) {
+    const cleaned = t.replace(slopRegex, (match) => {
+      const lower = match.toLowerCase();
+      if (lower.includes("game changer")) return "practical improvement";
+      if (lower.includes("unbelievable")) return "notable";
+      if (lower.includes("you won't believe")) return "take a look at";
+      if (lower.includes("comment yes")) return "let me know";
+      if (lower.includes("thread")) return "";
+      return "";
+    }).replace(/\s{2,}/g, " ");
+
+    suggestions.push({
+      id: "slop-clean",
+      type: "slop_fix",
+      title: "Remove engagement bait & AI filler",
+      explanation: "Replacing buzzwords with direct human language avoids mute and not-interested penalties.",
+      suggestedText: cleaned,
+      action: "replace_all",
+      actionLabel: "✨ Polish Hype Words",
+    });
+  }
+
+  return suggestions.slice(0, 4);
+}
+
 export function compose(
   dims: DimensionScores,
   category: Category,
   categoryConfidence: number,
-): Pick<AnalyzeResult, "composite" | "tips"> {
+  draftText?: string,
+): Pick<AnalyzeResult, "composite" | "tips" | "suggestions"> {
   const composite =
     WEIGHTS.hook * dims.hook +
     WEIGHTS.specificity * dims.specificity +
@@ -177,6 +337,7 @@ export function compose(
   return {
     composite: Math.round(composite * 1000) / 1000,
     tips: tipFrom(dims, category),
+    suggestions: draftText ? generateWritingSuggestions(draftText, dims, category) : [],
   };
 }
 
@@ -217,10 +378,11 @@ export async function analyzeLive(
     anti_slop: 1 - a.slop_risk.noul,
   };
   const category = a.category.choice as Category;
-  const { composite, tips } = compose(
+  const { composite, tips, suggestions } = compose(
     dimensions,
     category,
     a.category.confidence,
+    text,
   );
 
   return {
@@ -230,6 +392,7 @@ export async function analyzeLive(
     dimensions,
     composite,
     tips,
+    suggestions,
     model: response.model,
   };
 }
@@ -293,7 +456,7 @@ export function analyzeMock(text: string): AnalyzeResult {
   else if (/\b(i |my |we )\b/i.test(t) && wordCount > 30) category = "story";
   else if (/\b(wrong|unpopular|hot take|stop)\b/i.test(t)) category = "hot_take";
 
-  const { composite, tips } = compose(dimensions, category, 0.55);
+  const { composite, tips, suggestions } = compose(dimensions, category, 0.55, text);
   return {
     mode: "mock",
     category,
@@ -301,6 +464,7 @@ export function analyzeMock(text: string): AnalyzeResult {
     dimensions,
     composite,
     tips,
+    suggestions,
   };
 }
 

@@ -3,11 +3,36 @@ import "./App.css";
 import {
   CATEGORY_LABELS,
   DIMENSION_LABELS,
+  SUGGESTION_TYPE_LABELS,
   type AnalyzeResult,
   type DimensionScores,
+  type WritingSuggestion,
 } from "./types";
 
 const DEFAULT_DEBOUNCE_MS = 500;
+
+const WRITING_STARTERS = [
+  {
+    id: "contrarian",
+    title: "⚡ Contrarian Take",
+    text: `Most advice about [topic] is dead wrong.\n\nHere is what 90% of people miss:\n\n1. [Key point 1]\n2. [Key point 2]\n3. [Key point 3]\n\nWhat would you add to this?`,
+  },
+  {
+    id: "playbook",
+    title: "📋 Tactical Playbook",
+    text: `How to [desirable outcome] without [common pain point]:\n\nStep 1: [First tactical step]\nStep 2: [Second tactical step]\nStep 3: [Third tactical step]\n\nBookmark this for your next sprint.`,
+  },
+  {
+    id: "story",
+    title: "📖 Costly Lesson",
+    text: `Last year, we lost [time/money] trying to [goal].\n\nHere is the biggest mistake we made and the 3 rules we follow today:\n\n• Rule 1: [Detail]\n• Rule 2: [Detail]\n• Rule 3: [Detail]`,
+  },
+  {
+    id: "question",
+    title: "❓ Discussion Starter",
+    text: `Quick question for builders & creators:\n\nWhat is one workflow habit or tool that 10x'd your output this year?\n\nI'll start in the replies:`,
+  },
+];
 
 function pct(n: number): string {
   return `${Math.round(n * 100)}%`;
@@ -30,8 +55,13 @@ export default function App() {
   const [serverMode, setServerMode] = useState<"live" | "mock" | "unknown">(
     "unknown",
   );
+  const [history, setHistory] = useState<string[]>([]);
+  const [appliedId, setAppliedId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
   const abortRef = useRef<AbortController | null>(null);
   const reqId = useRef(0);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     fetch("/api/health")
@@ -81,23 +111,96 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!text.trim()) {
-      setResult(null);
-      setStatus("idle");
-      return;
+    const trimmed = text.trim();
+    if (!trimmed) {
+      const t = window.setTimeout(() => {
+        setResult(null);
+        setStatus("idle");
+      }, 0);
+      return () => window.clearTimeout(t);
     }
-    setStatus("waiting");
+    const waitTimer = window.setTimeout(() => {
+      setStatus("waiting");
+    }, 0);
     const t = window.setTimeout(() => {
       void runAnalyze(text);
     }, debounceMs);
     return () => {
+      window.clearTimeout(waitTimer);
       window.clearTimeout(t);
       abortRef.current?.abort();
     };
   }, [text, debounceMs, runAnalyze]);
 
+  const handleApplySuggestion = useCallback(
+    (suggestion: WritingSuggestion) => {
+      setHistory((prev) => [...prev, text]);
+      let newText = text;
+
+      if (suggestion.action === "replace_all") {
+        newText = suggestion.suggestedText;
+      } else if (suggestion.action === "append") {
+        const trimmed = text.trimEnd();
+        newText = trimmed
+          ? `${trimmed}\n\n${suggestion.suggestedText}`
+          : suggestion.suggestedText;
+      } else if (suggestion.action === "replace_hook") {
+        const trimmed = text.trim();
+        if (!trimmed) {
+          newText = suggestion.suggestedText;
+        } else {
+          const paragraphs = trimmed.split(/\n\s*\n/);
+          if (paragraphs.length > 1) {
+            paragraphs[0] = suggestion.suggestedText;
+            newText = paragraphs.join("\n\n");
+          } else {
+            const lines = trimmed.split("\n");
+            if (lines.length > 1) {
+              lines[0] = suggestion.suggestedText;
+              newText = lines.join("\n");
+            } else {
+              newText = suggestion.suggestedText;
+            }
+          }
+        }
+      }
+
+      setText(newText);
+      setAppliedId(suggestion.id);
+      setTimeout(() => {
+        setAppliedId((curr) => (curr === suggestion.id ? null : curr));
+      }, 2000);
+    },
+    [text],
+  );
+
+  const handleUndo = useCallback(() => {
+    if (history.length === 0) return;
+    const previous = history[history.length - 1];
+    setHistory((prev) => prev.slice(0, -1));
+    setText(previous);
+  }, [history]);
+
+  const handleCopySuggestion = useCallback(
+    (id: string, suggestionText: string) => {
+      void navigator.clipboard.writeText(suggestionText).then(() => {
+        setCopiedId(id);
+        setTimeout(() => {
+          setCopiedId((curr) => (curr === id ? null : curr));
+        }, 1800);
+      });
+    },
+    [],
+  );
+
+  const handleUseStarter = useCallback((starterText: string) => {
+    setText(starterText);
+    textareaRef.current?.focus();
+  }, []);
+
   const dims = result?.dimensions;
   const composite = result?.composite ?? 0;
+  const suggestions = result?.suggestions ?? [];
 
   return (
     <div className="shell">
@@ -106,13 +209,17 @@ export default function App() {
           <p className="eyebrow">DraftPulse · experimental · Jev</p>
           <h1>Viral post analyzer</h1>
           <p className="sub">
-            Pause typing and get dimension scores. Heuristic until calibrated on
-            real outcomes. Not production-ready.
+            Pause typing and get dimension scores + real-time writing suggestions.
+            Heuristic until calibrated on real outcomes.
           </p>
         </div>
         <div className="badges">
           <span className={`pill pill-${serverMode}`}>
-            {serverMode === "live" ? "Jev live" : serverMode === "mock" ? "Mock mode" : "…"}
+            {serverMode === "live"
+              ? "Jev live"
+              : serverMode === "mock"
+                ? "Mock mode"
+                : "…"}
           </span>
           {result?.model ? <span className="pill">{result.model}</span> : null}
         </div>
@@ -120,17 +227,32 @@ export default function App() {
 
       <main className="grid">
         <section className="composer card">
-          <label className="label" htmlFor="draft">
-            Draft
-          </label>
+          <div className="composer-header">
+            <label className="label" htmlFor="draft">
+              Draft
+            </label>
+            {history.length > 0 && (
+              <button
+                type="button"
+                className="btn-undo"
+                onClick={handleUndo}
+                title="Revert last applied suggestion"
+              >
+                ↩ Undo ({history.length})
+              </button>
+            )}
+          </div>
+
           <textarea
+            ref={textareaRef}
             id="draft"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Write the post. Stop typing — analysis runs after the debounce."
+            placeholder="Write the post. Stop typing — analysis and writing suggestions run after the debounce."
             rows={14}
             maxLength={8000}
           />
+
           <div className="composer-meta">
             <span>{text.length} chars</span>
             <label className="debounce">
@@ -152,6 +274,27 @@ export default function App() {
               {status === "idle" && result && "Updated"}
             </span>
           </div>
+
+          {!text.trim() && (
+            <div className="starters-section">
+              <p className="label starters-label">Writing starters & templates</p>
+              <div className="starters-grid">
+                {WRITING_STARTERS.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className="starter-card"
+                    onClick={() => handleUseStarter(s.text)}
+                  >
+                    <span className="starter-title">{s.title}</span>
+                    <span className="starter-snippet">
+                      {s.text.slice(0, 75).replace(/\n/g, " ")}…
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
 
         <aside className="results">
@@ -190,6 +333,64 @@ export default function App() {
                 style={{ width: pct(composite) }}
               />
             </div>
+          </section>
+
+          {/* Writing Suggestions Card */}
+          <section className="card suggestions-card">
+            <div className="suggestions-header">
+              <p className="label">Writing Suggestions</p>
+              {suggestions.length > 0 && (
+                <span className="suggestions-count-badge">
+                  {suggestions.length} available
+                </span>
+              )}
+            </div>
+
+            {suggestions.length > 0 ? (
+              <div className="suggestions-list">
+                {suggestions.map((s) => (
+                  <div key={s.id} className="suggestion-item">
+                    <div className="suggestion-top">
+                      <span className={`suggestion-badge badge-${s.type}`}>
+                        {SUGGESTION_TYPE_LABELS[s.type]}
+                      </span>
+                      <span className="suggestion-title">{s.title}</span>
+                    </div>
+
+                    <p className="suggestion-desc">{s.explanation}</p>
+
+                    <div className="suggestion-preview">
+                      <pre className="suggestion-text">{s.suggestedText}</pre>
+                    </div>
+
+                    <div className="suggestion-actions">
+                      <button
+                        type="button"
+                        className={`btn-apply ${appliedId === s.id ? "is-applied" : ""}`}
+                        onClick={() => handleApplySuggestion(s)}
+                        disabled={appliedId === s.id}
+                      >
+                        {appliedId === s.id ? "✓ Applied to draft" : s.actionLabel}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-copy"
+                        onClick={() => handleCopySuggestion(s.id, s.suggestedText)}
+                        title="Copy text to clipboard"
+                      >
+                        {copiedId === s.id ? "✓ Copied" : "Copy"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="muted">
+                {text.trim()
+                  ? "Analyzing draft to generate writing suggestions…"
+                  : "Start writing or choose a starter template above to see suggestions."}
+              </p>
+            )}
           </section>
 
           <section className="card">

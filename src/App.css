@@ -76,6 +76,34 @@
   top: 1rem;
 }
 
+.composer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.55rem;
+}
+
+.composer-header .label {
+  margin: 0;
+}
+
+.btn-undo {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+.btn-undo:hover {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-color: var(--accent);
+}
+
 .label {
   margin: 0 0 0.55rem;
   font-size: 0.75rem;
@@ -126,6 +154,55 @@ textarea:focus {
   margin-left: auto;
 }
 
+/* Starters section */
+.starters-section {
+  margin-top: 1.25rem;
+  padding-top: 1.1rem;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.starters-label {
+  margin-bottom: 0.75rem;
+}
+
+.starters-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.6rem;
+}
+
+.starter-card {
+  text-align: left;
+  background: color-mix(in srgb, var(--bg) 80%, var(--elevated));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7rem 0.8rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  transition: all 140ms ease;
+  color: var(--text);
+}
+
+.starter-card:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--elevated));
+}
+
+.starter-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.starter-snippet {
+  font-size: 0.74rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+/* Results sidebar */
 .results {
   display: grid;
   gap: 0.85rem;
@@ -180,6 +257,174 @@ textarea:focus {
   transition: width 180ms ease;
 }
 
+/* Writing Suggestions */
+.suggestions-card {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+}
+
+.suggestions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.8rem;
+}
+
+.suggestions-header .label {
+  margin: 0;
+}
+
+.suggestions-count-badge {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  font-weight: 500;
+}
+
+.suggestions-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.suggestion-item {
+  background: color-mix(in srgb, var(--bg) 60%, var(--elevated));
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 10px;
+  padding: 0.8rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.suggestion-top {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.suggestion-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+}
+
+.badge-hook {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.badge-reply {
+  background: color-mix(in srgb, #c084fc 18%, transparent);
+  color: #c084fc;
+  border: 1px solid color-mix(in srgb, #c084fc 40%, transparent);
+}
+
+.badge-structure {
+  background: color-mix(in srgb, var(--high) 18%, transparent);
+  color: var(--high);
+  border: 1px solid color-mix(in srgb, var(--high) 40%, transparent);
+}
+
+.badge-specificity {
+  background: color-mix(in srgb, var(--mid) 18%, transparent);
+  color: var(--mid);
+  border: 1px solid color-mix(in srgb, var(--mid) 40%, transparent);
+}
+
+.badge-slop_fix {
+  background: color-mix(in srgb, var(--low) 18%, transparent);
+  color: var(--low);
+  border: 1px solid color-mix(in srgb, var(--low) 40%, transparent);
+}
+
+.suggestion-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.suggestion-desc {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.suggestion-preview {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  overflow-x: auto;
+}
+
+.suggestion-text {
+  margin: 0;
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.45;
+}
+
+.suggestion-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.2rem;
+}
+
+.btn-apply {
+  background: color-mix(in srgb, var(--accent) 20%, var(--elevated));
+  color: #ffffff;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 140ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn-apply:hover:not(:disabled) {
+  background: var(--accent);
+  color: #0b0f19;
+}
+
+.btn-apply.is-applied {
+  background: color-mix(in srgb, var(--high) 25%, var(--elevated));
+  border-color: var(--high);
+  color: var(--high);
+}
+
+.btn-copy {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+.btn-copy:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+/* Dimensions & Tips */
 .dim-list {
   list-style: none;
   margin: 0;
@@ -245,5 +490,9 @@ textarea:focus {
 
   .status {
     margin-left: 0;
+  }
+
+  .starters-grid {
+    grid-template-columns: 1fr;
   }
 }
